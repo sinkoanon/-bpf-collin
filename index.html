@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BPF — Coll.in</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root {
+  --bg:#fff;--bg2:#f5f4f0;--bg3:#edecea;--bg4:#e6e4e0;
+  --border:rgba(0,0,0,.1);--border2:rgba(0,0,0,.2);
+  --text:#1a1a18;--text2:#5c5c58;--text3:#9a9a94;
+  --purple:#534AB7;--purple-l:#EEEDFE;--purple-d:#3C3489;
+  --teal:#0F6E56;--teal-l:#E1F5EE;
+  --amber:#BA7517;--amber-l:#FAEEDA;
+  --red:#A32D2D;--red-l:#FCEBEB;
+  --blue:#185FA5;--blue-l:#E6F1FB;
+  --green:#3B6D11;--green-l:#EAF3DE;
+  --coral:#993C1D;--coral-l:#FAECE7;
+  --r:8px;--rl:12px;--rxl:16px;
+}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#1c1c1a;--bg2:#252522;--bg3:#2e2e2b;--bg4:#38382f;
+  --border:rgba(255,255,255,.09);--border2:rgba(255,255,255,.17);
+  --text:#f0efe8;--text2:#a8a89f;--text3:#6b6b64;
+  --purple-l:#26215C;--teal-l:#04342C;--amber-l:#412402;
+  --red-l:#501313;--blue-l:#042C53;--green-l:#173404;--coral-l:#4A1B0C;}
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg3);color:var(--text);min-height:100vh;font-size:15px}
+
+.topbar{background:var(--bg);border-bottom:.5px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:52px;position:sticky;top:0;z-index:100}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-logo{width:30px;height:30px;border-radius:7px;background:var(--teal);display:flex;align-items:center;justify-content:center}
+.brand-logo i{color:#fff;font-size:15px}
+.brand h1{font-size:14px;font-weight:600;color:var(--text)}
+.brand span{font-size:11px;color:var(--text2);margin-left:3px}
+.topbar-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+
+.layout{display:flex;min-height:calc(100vh - 52px)}
+.sidebar{width:210px;flex-shrink:0;background:var(--bg);border-right:.5px solid var(--border);padding:1rem 0;position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto;display:flex;flex-direction:column}
+.main{flex:1;padding:1.5rem;overflow-y:auto;min-width:0;max-width:1400px}
+
+.nav-section{padding:0 .75rem;margin-bottom:1.25rem}
+.nav-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);padding:0 .5rem;margin-bottom:.4rem}
+.nav-item{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:var(--r);cursor:pointer;font-size:13px;color:var(--text2);border:none;background:none;width:100%;text-align:left;transition:background .1s}
+.nav-item:hover{background:var(--bg2);color:var(--text)}
+.nav-item.active{background:var(--teal-l);color:var(--teal);font-weight:600}
+.nav-item.active i{color:var(--teal)}
+.nav-item i{font-size:15px;color:var(--text3);flex-shrink:0}
+.sidebar-footer{margin-top:auto;padding:.75rem}
+.sidebar-card{background:var(--teal-l);border-radius:var(--r);padding:.75rem;font-size:12px}
+.sidebar-card p{color:var(--teal);line-height:1.4}
+
+.page{display:none}.page.active{display:block}
+.page-header{margin-bottom:1.25rem}
+.page-header h2{font-size:18px;font-weight:600}
+.page-header p{font-size:13px;color:var(--text2);margin-top:2px}
+
+.card{background:var(--bg);border:.5px solid var(--border);border-radius:var(--rl);padding:1.25rem}
+.card-sm{padding:.875rem 1rem}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin-bottom:1.25rem}
+.metric{background:var(--bg2);border-radius:var(--r);padding:12px 14px}
+.metric-label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.metric-value{font-size:21px;font-weight:600;color:var(--text);line-height:1.1}
+.metric-sub{font-size:11px;color:var(--text3);margin-top:3px}
+.ok{color:var(--teal)}.warn{color:var(--amber)}.danger{color:var(--red)}
+
+.sec-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;margin-top:1.25rem}
+.sec-header:first-child{margin-top:0}
+.sec-title{font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px}
+.sec-title i{font-size:15px;color:var(--text2)}
+.divider{height:.5px;background:var(--border);margin:1rem 0}
+
+.badge{font-size:11px;font-weight:500;padding:2px 7px;border-radius:6px;display:inline-block;white-space:nowrap}
+.b-purple{background:var(--purple-l);color:var(--purple-d)}
+.b-teal{background:var(--teal-l);color:var(--teal)}
+.b-amber{background:var(--amber-l);color:var(--amber)}
+.b-red{background:var(--red-l);color:var(--red)}
+.b-blue{background:var(--blue-l);color:var(--blue)}
+.b-green{background:var(--green-l);color:var(--green)}
+.b-gray{background:var(--bg2);color:var(--text2);border:.5px solid var(--border)}
+
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;border-bottom:.5px solid var(--border2);white-space:nowrap}
+td{padding:8px 10px;color:var(--text);border-bottom:.5px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--bg2)}
+.tf td{font-weight:600;background:var(--bg2);border-top:.5px solid var(--border2);border-bottom:none}
+.code{font-family:monospace;font-size:11px;background:var(--bg2);padding:1px 6px;border-radius:4px;border:.5px solid var(--border);color:var(--text)}
+
+.fg{display:grid;gap:10px}
+.fg-2{grid-template-columns:1fr 1fr}
+.fg-3{grid-template-columns:1fr 1fr 1fr}
+.fg-4{grid-template-columns:1fr 1fr 1fr 1fr}
+.fgroup label{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px}
+.fgroup input,.fgroup select,.fgroup textarea{width:100%;padding:6px 9px;font-size:13px;background:var(--bg);border:.5px solid var(--border2);border-radius:var(--r);color:var(--text);outline:none;font-family:inherit;transition:border-color .1s}
+.fgroup input:focus,.fgroup select:focus,.fgroup textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(15,110,86,.1)}
+
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;font-size:13px;font-weight:500;border-radius:var(--r);cursor:pointer;border:none;font-family:inherit;transition:all .1s;white-space:nowrap}
+.btn-primary{background:var(--teal);color:#fff}.btn-primary:hover{background:#0c5a45}
+.btn-secondary{background:var(--bg2);color:var(--text);border:.5px solid var(--border2)}.btn-secondary:hover{background:var(--bg3)}
+.btn-danger{background:var(--red-l);color:var(--red)}.btn-danger:hover{filter:brightness(.95)}
+.btn-success{background:var(--teal-l);color:var(--teal)}.btn-success:hover{filter:brightness(.95)}
+.btn-sm{padding:5px 9px;font-size:12px}
+.btn-xs{padding:3px 7px;font-size:11px}
+
+.ib{border-radius:var(--r);padding:10px 13px;font-size:13px;display:flex;align-items:flex-start;gap:8px;margin-bottom:.875rem;line-height:1.5}
+.ib i{font-size:15px;flex-shrink:0;margin-top:1px}
+.ib-blue{background:var(--blue-l);color:var(--blue);border:.5px solid rgba(24,95,165,.18)}
+.ib-amber{background:var(--amber-l);color:var(--amber);border:.5px solid rgba(186,117,23,.18)}
+.ib-green{background:var(--green-l);color:var(--green);border:.5px solid rgba(59,109,17,.18)}
+.ib-red{background:var(--red-l);color:var(--red);border:.5px solid rgba(163,45,45,.18)}
+
+.cfg-banner{background:var(--teal-l);border:.5px solid rgba(15,110,86,.2);border-radius:var(--rl);padding:.875rem 1.125rem;margin-bottom:1.25rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.cfg-field{display:flex;align-items:center;gap:7px}
+.cfg-field label{font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.cfg-field input,.cfg-field select{padding:4px 8px;font-size:13px;font-weight:500;background:#fff;border:.5px solid rgba(15,110,86,.25);border-radius:var(--r);color:var(--teal);outline:none;font-family:inherit}
+
+.drop-zone{border:1.5px dashed var(--border2);border-radius:var(--rl);padding:1.75rem;text-align:center;cursor:pointer;transition:all .15s}
+.drop-zone:hover{background:var(--bg2);border-color:var(--teal)}
+.drop-zone i{font-size:28px;color:var(--text3);margin-bottom:8px;display:block}
+.drop-zone strong{display:block;font-size:14px;color:var(--text);margin-bottom:4px}
+.drop-zone p{font-size:12px;color:var(--text3)}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.25rem}
+
+#toast{position:fixed;bottom:20px;right:20px;background:var(--text);color:var(--bg);padding:9px 16px;border-radius:var(--r);font-size:13px;font-weight:500;opacity:0;transition:opacity .2s;pointer-events:none;z-index:300;display:flex;align-items:center;gap:7px}
+
+.cerfa-block{border:1px solid var(--border2);border-radius:var(--rl);overflow:hidden;margin-bottom:1.25rem}
+.cerfa-block-header{background:var(--bg4);padding:10px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text2)}
+.cerfa-row{display:grid;grid-template-columns:1fr 130px;gap:10px;padding:7px 14px;border-bottom:.5px solid var(--border);align-items:center;font-size:13px}
+.cerfa-row:last-child{border-bottom:none}
+.cerfa-row.indent{padding-left:28px;color:var(--text2);font-size:12px}
+.cerfa-row.total{background:var(--bg2);font-weight:700}
+.cerfa-val{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.cerfa-letter{display:inline-block;width:18px;font-weight:700;color:var(--teal);font-size:11px}
+
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:none;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg);border-radius:var(--rxl);padding:1.5rem;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal h3{font-size:16px;font-weight:600;margin-bottom:1rem}
+
+@media(max-width:900px){.sidebar{display:none}.main{padding:1rem}.two-col,.three-col{grid-template-columns:1fr}.fg-4{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.fg-3,.fg-2{grid-template-columns:1fr}.card-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-logo"><i class="ti ti-school"></i></div>
+    <h1>BPF Coll.in<span id="tb-exercice">· 2025</span></h1>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn btn-secondary btn-sm" onclick="showPage('config')"><i class="ti ti-settings"></i> Mapping</button>
+    <button class="btn btn-secondary btn-sm" onclick="sauvegarder()"><i class="ti ti-device-floppy"></i> Sauvegarder</button>
+    <button class="btn btn-secondary btn-sm" onclick="exportJSON()"><i class="ti ti-download"></i> Export JSON</button>
+    <label class="btn btn-secondary btn-sm" style="cursor:pointer"><i class="ti ti-upload"></i> Import JSON<input type="file" accept=".json" onchange="importJSON(this)" style="display:none"></label>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="sidebar">
+  <div class="nav-section">
+    <div class="nav-label">Vue globale</div>
+    <button class="nav-item active" id="nav-dashboard" onclick="showPage('dashboard')"><i class="ti ti-layout-dashboard"></i> Tableau de bord</button>
+    <button class="nav-item" id="nav-import" onclick="showPage('import')"><i class="ti ti-upload"></i> Import sessions</button>
+    <button class="nav-item" id="nav-sessions" onclick="showPage('sessions')"><i class="ti ti-list"></i> Sessions</button>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Cadres CERFA</div>
+    <button class="nav-item" id="nav-cadreC" onclick="showPage('cadreC')"><i class="ti ti-coin"></i> C — Produits</button>
+    <button class="nav-item" id="nav-cadreD" onclick="showPage('cadreD')"><i class="ti ti-receipt"></i> D — Charges</button>
+    <button class="nav-item" id="nav-cadreE" onclick="showPage('cadreE')"><i class="ti ti-users"></i> E — FormateurEs</button>
+    <button class="nav-item" id="nav-cadreF" onclick="showPage('cadreF')"><i class="ti ti-school"></i> F — StagiairEs</button>
+    <button class="nav-item" id="nav-cadreG" onclick="showPage('cadreG')"><i class="ti ti-arrows-exchange"></i> G — Sous-traitance</button>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Paramètres</div>
+    <button class="nav-item" id="nav-config" onclick="showPage('config')"><i class="ti ti-settings"></i> Mapping financeurs</button>
+    <button class="nav-item" id="nav-export" onclick="showPage('export')"><i class="ti ti-file-text"></i> Bilan CERFA complet</button>
+  </div>
+  <div class="sidebar-footer">
+    <div class="sidebar-card">
+      <p style="font-weight:600;color:var(--teal);margin-bottom:4px">Exercice <span id="sb-exercice">2025</span></p>
+      <p id="sb-sessions">Sessions : —</p>
+      <p id="sb-produits" style="margin-top:2px">Produits : —</p>
+    </div>
+  </div>
+</nav>
+
+<main class="main">
+
+<div id="page-dashboard" class="page active">
+  <div class="page-header">
+    <h2>Tableau de bord BPF</h2>
+    <p id="db-subtitle">Vue consolidée — exercice <span id="db-exercice-lbl">2025</span></p>
+  </div>
+
+  <div class="cfg-banner">
+    <div class="cfg-field"><label><i class="ti ti-calendar" style="font-size:12px"></i> Exercice</label><input type="number" id="cfg-exercice" value="2025" min="2020" max="2030" oninput="updateCfg()" style="width:80px"></div>
+    <div class="cfg-field"><label><i class="ti ti-calendar-event" style="font-size:12px"></i> Début</label><input type="date" id="cfg-date-debut" oninput="updateCfg()"></div>
+    <div class="cfg-field"><label><i class="ti ti-calendar-event" style="font-size:12px"></i> Fin</label><input type="date" id="cfg-date-fin" oninput="updateCfg()"></div>
+  </div>
+
+  <div class="card-grid" id="db-kpis">
+    <div class="metric"><div class="metric-label">Sessions saisies</div><div class="metric-value" id="db-sessions">0</div><div class="metric-sub" id="db-sessions-sub">dont 0 incomplètes</div></div>
+    <div class="metric"><div class="metric-label">Total produits</div><div class="metric-value ok" id="db-produits">0 €</div><div class="metric-sub">cadre C</div></div>
+    <div class="metric"><div class="metric-label">StagiairEs</div><div class="metric-value" id="db-stagiaires">0</div><div class="metric-sub">cadre F-1</div></div>
+    <div class="metric"><div class="metric-label">Heures stagiaires</div><div class="metric-value" id="db-heures-stag">0</div><div class="metric-sub">cadre F-1</div></div>
+    <div class="metric"><div class="metric-label">Heures formateurEs</div><div class="metric-value" id="db-heures-form">0</div><div class="metric-sub">cadre E</div></div>
+    <div class="metric"><div class="metric-label">% CA formation</div><div class="metric-value" id="db-pct-ca">— %</div><div class="metric-sub">à saisir manuellement</div></div>
+  </div>
+
+  <div id="db-alertes"></div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="sec-header" style="margin-top:0">
+        <div class="sec-title"><i class="ti ti-chart-pie"></i> Répartition par ligne CERFA (Cadre C)</div>
+      </div>
+      <div id="db-repart-c"></div>
+    </div>
+    <div class="card">
+      <div class="sec-header" style="margin-top:0">
+        <div class="sec-title"><i class="ti ti-tag"></i> Répartition par catégorie interne</div>
+      </div>
+      <div id="db-repart-cat"></div>
+    </div>
+  </div>
+</div>
+
+<div id="page-import" class="page">
+  <div class="page-header"><h2>Import des sessions de formation</h2><p>Importez votre registre Excel (.xlsx) ou CSV</p></div>
+
+  <div class="ib ib-blue"><i class="ti ti-info-circle"></i><span>Colonnes attendues : Catégorie BPF, Nom formation, FormateurEs interne/externe, Nb participantEs, Nb heures formation, Argent reçu, Argent versé formateurEs, Heures totales participantEs. L'ordre des colonnes peut varier — l'outil détecte les en-têtes automatiquement.</span></div>
+
+  <div class="drop-zone" onclick="document.getElementById('file-sessions').click()">
+    <i class="ti ti-file-spreadsheet"></i>
+    <strong>Registre de sessions (xlsx, csv)</strong>
+    <p>Cliquer pour sélectionner votre fichier de suivi</p>
+  </div>
+  <input type="file" id="file-sessions" accept=".csv,.xlsx" style="display:none" onchange="importSessions(this)">
+
+  <div id="import-preview" style="margin-top:1rem"></div>
+  <div id="import-actions" style="display:none;margin-top:1rem">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span id="import-count" style="font-size:13px;color:var(--text2)"></span>
+      <button class="btn btn-primary" onclick="validerImportSessions()"><i class="ti ti-check"></i> Importer ces sessions</button>
+      <button class="btn btn-secondary" onclick="annulerImportSessions()"><i class="ti ti-x"></i> Annuler</button>
+    </div>
+  </div>
+</div>
+
+<div id="page-sessions" class="page">
+  <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div><h2>Sessions de formation</h2><p>Détail de chaque session importée ou saisie</p></div>
+    <button class="btn btn-primary" onclick="ouvrirModalSession()"><i class="ti ti-plus"></i> Nouvelle session</button>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;align-items:flex-end">
+    <div class="fgroup" style="min-width:140px"><label>Catégorie</label><select id="ses-f-cat" onchange="renderSessions()" style="height:32px;font-size:12px"><option value="">Toutes</option></select></div>
+    <div class="fgroup" style="min-width:140px"><label>Complétude</label>
+      <select id="ses-f-statut" onchange="renderSessions()" style="height:32px;font-size:12px">
+        <option value="">Toutes</option>
+        <option value="complete">Complètes</option>
+        <option value="incomplete">Incomplètes</option>
+      </select>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="resetFiltresSessions()" style="align-self:flex-end;height:32px"><i class="ti ti-filter-off"></i></button>
+  </div>
+
+  <div class="card" style="padding:0">
+    <div class="tw"><table>
+      <thead><tr>
+        <th>Catégorie</th><th>Session</th><th>FormateurE(s)</th><th>Particip.</th><th>H. formation</th>
+        <th>H. participantEs</th><th>Reçu (€)</th><th>Versé form. (€)</th><th>Ligne CERFA</th><th></th>
+      </tr></thead>
+      <tbody id="ses-tbody"></tbody>
+      <tfoot><tr class="tf">
+        <td colspan="3">Total filtré</td>
+        <td id="ses-total-part">0</td>
+        <td id="ses-total-hf">0</td>
+        <td id="ses-total-hp">0</td>
+        <td id="ses-total-recu">0 €</td>
+        <td id="ses-total-verse">0 €</td>
+        <td colspan="2"></td>
+      </tr></tfoot>
+    </table></div>
+  </div>
+</div>
+
+<div id="page-cadreC" class="page">
+  <div class="page-header"><h2>Cadre C — Origine des produits</h2><p>Bilan financier hors taxes — calculé depuis les sessions importées</p></div>
+  <div id="cadreC-content"></div>
+</div>
+
+<div id="page-cadreD" class="page">
+  <div class="page-header"><h2>Cadre D — Charges de l'organisme</h2><p>Saisie manuelle ou import depuis l'outil analytique CAPs</p></div>
+  <div class="card">
+    <div class="fg fg-3">
+      <div class="fgroup"><label>Total charges formation (€)</label><input type="number" id="d-total-charges" step="0.01" oninput="updateCadreD()"></div>
+      <div class="fgroup"><label>dont Salaires formateurEs (€)</label><input type="number" id="d-salaires-form" step="0.01" oninput="updateCadreD()"></div>
+      <div class="fgroup"><label>dont Achats prestations form. (€)</label><input type="number" id="d-achats-prest" step="0.01" oninput="updateCadreD()"></div>
+    </div>
+  </div>
+  <div id="cadreD-content" style="margin-top:1.25rem"></div>
+</div>
+
+<div id="page-cadreE" class="page">
+  <div class="page-header"><h2>Cadre E — PersonnEs dispensant des heures de formation</h2><p>Calculé automatiquement depuis les sessions (formateurEs interne/externe)</p></div>
+  <div id="cadreE-content"></div>
+</div>
+
+<div id="page-cadreF" class="page">
+  <div class="page-header"><h2>Cadre F — Bilan pédagogique : stagiaires</h2><p>Profil, objectifs et spécialités de formation</p></div>
+
+  <div class="sec-header" style="margin-top:0"><div class="sec-title"><i class="ti ti-users"></i> F-1 — Type de stagiaires</div></div>
+  <div class="ib ib-amber"><i class="ti ti-alert-triangle"></i><span>Le détail du profil par session n'est pas disponible. Répartition estimée ci-dessous — ajustez les pourcentages si besoin.</span></div>
+  <div class="card">
+    <div class="fg fg-4">
+      <div class="fgroup"><label>% Salariés privés</label><input type="number" id="f1-pct-salaries" value="90" min="0" max="100" oninput="updateCadreF()"></div>
+      <div class="fgroup"><label>% Demandeurs d'emploi</label><input type="number" id="f1-pct-de" value="0" min="0" max="100" oninput="updateCadreF()"></div>
+      <div class="fgroup"><label>% Particuliers</label><input type="number" id="f1-pct-part" value="0" min="0" max="100" oninput="updateCadreF()"></div>
+      <div class="fgroup"><label>% Autres (bénévoles…)</label><input type="number" id="f1-pct-autres" value="10" min="0" max="100" oninput="updateCadreF()"></div>
+    </div>
+  </div>
+  <div id="cadreF1-content" style="margin-top:1rem"></div>
+
+  <div class="sec-header"><div class="sec-title"><i class="ti ti-target"></i> F-3 — Objectif général des prestations</div></div>
+  <div class="ib ib-blue"><i class="ti ti-info-circle"></i><span>Saisie manuelle — la majorité des actions Coll.in sont probablement "Autres formations professionnelles" (ligne d), à ajuster si certaines visent une certification.</span></div>
+  <div class="card">
+    <div class="fg fg-2">
+      <div class="fgroup"><label>Stagiaires — autres formations professionnelles (ligne d)</label><input type="number" id="f3-autres" value="0" oninput="updateCadreF()"></div>
+      <div class="fgroup"><label>Stagiaires — formations certifiantes (ligne a/b/c)</label><input type="number" id="f3-certif" value="0" oninput="updateCadreF()"></div>
+    </div>
+  </div>
+
+  <div class="sec-header"><div class="sec-title"><i class="ti ti-tag"></i> F-4 — Spécialités de formation (codes NSF)</div></div>
+  <div class="ib ib-blue"><i class="ti ti-info-circle"></i><span>Code NSF probable pour Coll.in : <strong>326 — Informatique, traitement de l'information, réseaux de transmission</strong>. À confirmer.</span></div>
+  <div class="card" style="padding:0">
+    <div class="tw"><table>
+      <thead><tr><th>Code NSF</th><th>Spécialité</th><th>StagiairEs</th><th>Heures</th><th></th></tr></thead>
+      <tbody id="f4-tbody"></tbody>
+    </table></div>
+    <div style="padding:.75rem 1rem"><button class="btn btn-secondary btn-sm" onclick="ajouterSpecialite()"><i class="ti ti-plus"></i> Ajouter une spécialité</button></div>
+  </div>
+</div>
+
+<div id="page-cadreG" class="page">
+  <div class="page-header"><h2>Cadre G — Stagiaires confiés par un autre organisme</h2><p>Sous-traitance reçue (l'inverse du Cadre F-2)</p></div>
+  <div class="ib ib-blue"><i class="ti ti-info-circle"></i><span>Concerne les actions où un autre organisme de formation vous a confié des stagiaires (correspond au produit ligne 10 du Cadre C). À ne pas confondre avec vos propres sous-traitances (REGION, MEDNUM) qui sont déjà comptées en F.</span></div>
+  <div class="card">
+    <div class="fg fg-2">
+      <div class="fgroup"><label>Nombre de stagiaires confiés</label><input type="number" id="g-stagiaires" value="0" oninput="updateCadreG()"></div>
+      <div class="fgroup"><label>Heures de formation suivies</label><input type="number" id="g-heures" value="0" oninput="updateCadreG()"></div>
+    </div>
+  </div>
+</div>
+
+<div id="page-config" class="page">
+  <div class="page-header"><h2>Mapping financeurs → lignes CERFA</h2><p>Cette correspondance peut changer chaque année — modifiez-la librement</p></div>
+
+  <div class="ib ib-blue"><i class="ti ti-info-circle"></i><span>Chaque catégorie de votre registre (FNE, REGION, MSA…) doit être associée à une ligne du Cadre C du CERFA. Ce mapping est entièrement éditable.</span></div>
+
+  <div class="sec-header" style="margin-top:0">
+    <div class="sec-title"><i class="ti ti-arrows-exchange"></i> Catégories et lignes CERFA</div>
+    <button class="btn btn-primary btn-sm" onclick="ouvrirModalMapping()"><i class="ti ti-plus"></i> Ajouter une catégorie</button>
+  </div>
+  <div class="card" style="padding:0">
+    <div class="tw"><table>
+      <thead><tr><th>Catégorie interne</th><th>Ligne CERFA</th><th>Libellé officiel</th><th>Justification</th><th></th></tr></thead>
+      <tbody id="mapping-tbody"></tbody>
+    </table></div>
+  </div>
+
+  <div class="sec-header"><div class="sec-title"><i class="ti ti-list"></i> Référence — lignes officielles du Cadre C</div></div>
+  <div class="card" style="padding:0">
+    <div class="tw"><table>
+      <thead><tr><th>Ligne</th><th>Libellé officiel CERFA</th></tr></thead>
+      <tbody id="ref-lignes-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<div id="page-export" class="page">
+  <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div><h2>Bilan CERFA complet</h2><p>Vue consolidée prête à recopier sur monactiviteformation.emploi.gouv.fr</p></div>
+    <button class="btn btn-primary" onclick="exportBPFTxt()"><i class="ti ti-download"></i> Export TXT</button>
+  </div>
+  <div id="export-content"></div>
+</div>
+
+</main>
+</div>
+
+<div class="modal-bg" id="modal-session">
+  <div class="modal">
+    <h3 id="modal-session-title">Nouvelle session</h3>
+    <div class="fg fg-2" style="margin-bottom:10px">
+      <div class="fgroup"><label>Catégorie BPF</label><select id="ms-cat"></select></div>
+      <div class="fgroup"><label>Nom de la session</label><input type="text" id="ms-nom" placeholder="Ex : FNE 30 – 17 février"></div>
+    </div>
+    <div class="fg fg-2" style="margin-bottom:10px">
+      <div class="fgroup"><label>FormateurE(s) interne(s)</label><input type="text" id="ms-form-int" placeholder="Ex : Pauline"></div>
+      <div class="fgroup"><label>FormateurE(s) externe(s)</label><input type="text" id="ms-form-ext" placeholder="Ex : Antoine Luciani"></div>
+    </div>
+    <div class="fg fg-3" style="margin-bottom:10px">
+      <div class="fgroup"><label>Nb participantEs</label><input type="number" id="ms-participants" value="0"></div>
+      <div class="fgroup"><label>Heures de formation</label><input type="number" id="ms-heures-form" value="0" step="0.5"></div>
+      <div class="fgroup"><label>Heures totales particip.</label><input type="number" id="ms-heures-part" value="0" step="0.5"></div>
+    </div>
+    <div class="fg fg-2" style="margin-bottom:10px">
+      <div class="fgroup"><label>Argent reçu (€)</label><input type="number" id="ms-recu" value="0" step="0.01"></div>
+      <div class="fgroup"><label>Argent versé formateurEs (€)</label><input type="number" id="ms-verse" value="0" step="0.01"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:1rem">
+      <button class="btn btn-danger btn-sm" id="ms-btn-suppr" onclick="supprimerSession()" style="display:none"><i class="ti ti-trash"></i> Supprimer</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn btn-secondary" onclick="fermerModalSession()">Annuler</button>
+        <button class="btn btn-primary" onclick="validerSession()"><i class="ti ti-check"></i> Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-mapping">
+  <div class="modal">
+    <h3 id="modal-mapping-title">Nouvelle catégorie</h3>
+    <div class="fg" style="margin-bottom:10px">
+      <div class="fgroup"><label>Nom catégorie interne</label><input type="text" id="mm-nom" placeholder="Ex : FNE"></div>
+      <div class="fgroup"><label>Ligne CERFA</label>
+        <select id="mm-ligne"></select>
+      </div>
+      <div class="fgroup"><label>Justification / note</label><input type="text" id="mm-note" placeholder="Ex : financement direct département, public externe"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:1rem">
+      <button class="btn btn-danger btn-sm" id="mm-btn-suppr" onclick="supprimerMapping()" style="display:none"><i class="ti ti-trash"></i> Supprimer</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn btn-secondary" onclick="fermerModalMapping()">Annuler</button>
+        <button class="btn btn-primary" onclick="validerMapping()"><i class="ti ti-check"></i> Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"><i id="toast-icon" class="ti ti-check"></i><span id="toast-msg">OK</span></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════
+// RÉFÉRENCE — LIGNES OFFICIELLES CADRE C DU CERFA
+// ══════════════════════════════════════════════════════════════
+const LIGNES_CERFA = {
+  '1':  "Entreprises pour la formation de leurs salariés",
+  'a':  "Organismes gestionnaires — contrats d'apprentissage",
+  'b':  "Organismes gestionnaires — contrats de professionnalisation",
+  'c':  "Organismes gestionnaires — promotion/reconversion par alternance",
+  'd':  "Organismes gestionnaires — projets de transition professionnelle",
+  'e':  "Organismes gestionnaires — compte personnel de formation",
+  'f':  "Organismes gestionnaires — dispositifs spécifiques demandeurs d'emploi",
+  'g':  "Organismes gestionnaires — dispositifs spécifiques travailleurs non-salariés",
+  'h':  "Organismes gestionnaires — plan de développement des compétences / autres dispositifs",
+  '3':  "Pouvoirs publics — formation de leurs agents (État, collectivités, EPA)",
+  '4':  "Pouvoirs publics — publics spécifiques : instances européennes",
+  '5':  "Pouvoirs publics — publics spécifiques : État",
+  '6':  "Pouvoirs publics — publics spécifiques : conseils régionaux",
+  '7':  "Pouvoirs publics — publics spécifiques : France Travail",
+  '8':  "Pouvoirs publics — publics spécifiques : autres ressources publiques",
+  '9':  "Contrats avec des personnes à titre individuel et à leurs frais",
+  '10': "Contrats avec d'autres organismes de formation (y compris CFA)",
+  '11': "Autres produits au titre de la formation professionnelle",
+};
+const ORDRE_LIGNES = ['1','a','b','c','d','e','f','g','h','3','4','5','6','7','8','9','10','11'];
+
+// ══════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════
+let state = {
+  config: {
+    exercice: 2025,
+    dateDebut: '2025-01-01',
+    dateFin: '2025-12-31',
+  },
+  mapping: [
+    { id:'fne',    nom:'FNE',     ligne:'8',  note:"Financement direct département, public externe (médiateurs, aidants connect)" },
+    { id:'msa',    nom:'MSA',     ligne:'3',  note:"Financement direct MSA pour ses agents" },
+    { id:'region', nom:'REGION',  ligne:'10', note:"Sous-traitance — vous intervenez pour le compte d'un autre organisme ayant le marché Région" },
+    { id:'mednum', nom:'MEDNUM',  ligne:'10', note:"Sous-traitance" },
+    { id:'ocpo',   nom:'OCPO',    ligne:'h',  note:"Uniformation — plan de développement des compétences (OPCO)" },
+    { id:'hub',    nom:'HUB DU SUD', ligne:'1', note:"Association cliente directe" },
+    { id:'camadoc',nom:'CAMADOC', ligne:'1',  note:"Association cliente directe" },
+    { id:'ekko',   nom:'EKKO',    ligne:'1',  note:"Association cliente directe" },
+  ],
+  sessions: [],
+  cadreD: { totalCharges:0, salairesForm:0, achatsPrest:0 },
+  cadreF: { pctSalaries:90, pctDE:0, pctPart:0, pctAutres:10, f3Autres:0, f3Certif:0, specialites:[
+    { code:'326', nom:'Informatique, traitement de l\'information, réseaux de transmission', stagiaires:0, heures:0 }
+  ]},
+  cadreG: { stagiaires:0, heures:0 },
+  pctCA: null,
+  importBuffer: [],
+};
+
+let editSessionId = null;
+let editMappingId = null;
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  chargerLS();
+  syncCfgInputs();
+  renderRefLignes();
+  updateAll();
+});
+
+function updateAll() {
+  renderMappingTable();
+  renderSelectsCat();
+  renderDashboard();
+  renderSessions();
+  renderFiltresSessions();
+  renderCadreC();
+  renderCadreD();
+  renderCadreE();
+  renderCadreF();
+  renderCadreG();
+  renderExport();
+  updateSidebar();
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const pg = document.getElementById('page-' + id);
+  if (pg) pg.classList.add('active');
+  const nav = document.getElementById('nav-' + id);
+  if (nav) nav.classList.add('active');
+  if (id === 'export') renderExport();
+  if (id === 'config') { renderMappingTable(); renderRefLignes(); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════
+function fmt(n) { return (n||0).toLocaleString('fr-FR',{minimumFractionDigits:0,maximumFractionDigits:2}); }
+function fmtEur(n) { return fmt(n) + ' €'; }
+function toast(msg, type) {
+  const t = document.getElementById('toast'), ic = document.getElementById('toast-icon');
+  document.getElementById('toast-msg').textContent = msg;
+  ic.className = type === 'warn' ? 'ti ti-alert-triangle' : 'ti ti-check';
+  t.style.opacity = '1'; clearTimeout(t._to);
+  t._to = setTimeout(() => t.style.opacity = '0', 2500);
+}
+function dl(content, filename, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = filename; a.click();
+}
+function today() { return new Date().toISOString().slice(0,10).replace(/-/g,''); }
+
+function getMapping(catNom) {
+  return state.mapping.find(m => m.nom.toLowerCase() === (catNom||'').toLowerCase());
+}
+
+function sessionIncomplete(s) {
+  return !s.heuresFormation || !s.recu || s.recu <= 0 || (!s.formInt && !s.formExt);
+}
+
+// ══════════════════════════════════════════════════════════════
+// CONFIG (exercice)
+// ══════════════════════════════════════════════════════════════
+function syncCfgInputs() {
+  document.getElementById('cfg-exercice').value = state.config.exercice;
+  document.getElementById('cfg-date-debut').value = state.config.dateDebut;
+  document.getElementById('cfg-date-fin').value = state.config.dateFin;
+  document.getElementById('tb-exercice').textContent = '· ' + state.config.exercice;
+  document.getElementById('sb-exercice').textContent = state.config.exercice;
+  document.getElementById('db-exercice-lbl').textContent = state.config.exercice;
+}
+function updateCfg() {
+  state.config.exercice = parseInt(document.getElementById('cfg-exercice').value) || 2025;
+  state.config.dateDebut = document.getElementById('cfg-date-debut').value;
+  state.config.dateFin = document.getElementById('cfg-date-fin').value;
+  syncCfgInputs();
+  sauvegarder(true);
+}
+
+// ══════════════════════════════════════════════════════════════
+// MAPPING
+// ══════════════════════════════════════════════════════════════
+function renderRefLignes() {
+  document.getElementById('ref-lignes-tbody').innerHTML = ORDRE_LIGNES.map(l => `
+    <tr><td><span class="code">${l}</span></td><td>${LIGNES_CERFA[l]}</td></tr>
+  `).join('');
+}
+
+function renderMappingTable() {
+  document.getElementById('mapping-tbody').innerHTML = state.mapping.map(m => `
+    <tr>
+      <td><strong>${m.nom}</strong></td>
+      <td><span class="badge b-teal">${m.ligne}</span></td>
+      <td style="font-size:12px;color:var(--text2)">${LIGNES_CERFA[m.ligne]||'—'}</td>
+      <td style="font-size:12px;color:var(--text3)">${m.note||''}</td>
+      <td><button class="btn btn-secondary btn-xs" onclick="ouvrirModalMapping('${m.id}')"><i class="ti ti-edit"></i></button></td>
+    </tr>
+  `).join('');
+}
+
+function renderSelectOptionsLignes(selected) {
+  return ORDRE_LIGNES.map(l => `<option value="${l}" ${l===selected?'selected':''}>${l} — ${LIGNES_CERFA[l]}</option>`).join('');
+}
+
+function ouvrirModalMapping(id) {
+  editMappingId = id || null;
+  const m = id ? state.mapping.find(x=>x.id===id) : null;
+  document.getElementById('modal-mapping-title').textContent = m ? 'Modifier la catégorie' : 'Nouvelle catégorie';
+  document.getElementById('mm-nom').value = m?.nom || '';
+  document.getElementById('mm-ligne').innerHTML = renderSelectOptionsLignes(m?.ligne);
+  document.getElementById('mm-note').value = m?.note || '';
+  document.getElementById('mm-btn-suppr').style.display = m ? 'inline-flex' : 'none';
+  document.getElementById('modal-mapping').classList.add('open');
+}
+function fermerModalMapping() { document.getElementById('modal-mapping').classList.remove('open'); editMappingId = null; }
+
+function validerMapping() {
+  const nom = document.getElementById('mm-nom').value.trim();
+  const ligne = document.getElementById('mm-ligne').value;
+  const note = document.getElementById('mm-note').value.trim();
+  if (!nom) { toast('Nom de catégorie requis', 'warn'); return; }
+  if (editMappingId) {
+    const m = state.mapping.find(x=>x.id===editMappingId);
+    if (m) { m.nom = nom; m.ligne = ligne; m.note = note; }
+  } else {
+    const id = nom.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+    state.mapping.push({ id, nom, ligne, note });
+  }
+  fermerModalMapping();
+  sauvegarder(true);
+  updateAll();
+  toast('Mapping enregistré');
+}
+function supprimerMapping() {
+  if (!confirm('Supprimer cette catégorie du mapping ?')) return;
+  state.mapping = state.mapping.filter(m => m.id !== editMappingId);
+  fermerModalMapping();
+  sauvegarder(true);
+  updateAll();
+  toast('Catégorie supprimée');
+}
+
+function renderSelectsCat() {
+  const opts = '<option value="">—</option>' + state.mapping.map(m => `<option value="${m.nom}">${m.nom}</option>`).join('');
+  const msCat = document.getElementById('ms-cat'); if (msCat) msCat.innerHTML = opts;
+  const sesFCat = document.getElementById('ses-f-cat');
+  if (sesFCat) sesFCat.innerHTML = '<option value="">Toutes</option>' + state.mapping.map(m => `<option value="${m.nom}">${m.nom}</option>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// IMPORT SESSIONS (xlsx / csv)
+// ══════════════════════════════════════════════════════════════
+function importSessions(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  if (ext === 'xlsx') {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const sheetName = wb.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '' });
+      processRows(rows, file.name);
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const lines = e.target.result.split('\n').filter(l => l.trim());
+      const sep = lines[0].includes(';') ? ';' : (lines[0].includes('\t') ? '\t' : ',');
+      const rows = lines.map(l => l.split(sep));
+      processRows(rows, file.name);
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+  input.value = '';
+}
+
+function processRows(rows, filename) {
+  // Trouver la ligne d'en-tête (contient "Catégorie" ou "Nom formation")
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    const rowStr = rows[i].join('|').toLowerCase();
+    if (rowStr.includes('catégorie') || rowStr.includes('categorie') || rowStr.includes('formation')) {
+      headerIdx = i; break;
+    }
+  }
+  if (headerIdx < 0) headerIdx = 0;
+
+  const headers = rows[headerIdx].map(h => (h||'').toString().toLowerCase().trim());
+  const findCol = (...keywords) => {
+    for (let i = 0; i < headers.length; i++) {
+      if (keywords.some(k => headers[i].includes(k))) return i;
+    }
+    return -1;
+  };
+
+  const colCat    = findCol('catégorie', 'categorie');
+  const colNom    = findCol('nom formation');
+  const colFormInt= findCol('interne');
+  const colFormExt= findCol('externe');
+  const colPart   = findCol("nb de participant", "nombre de participant");
+  const colHF     = findCol("nb d'heures de formation", "nombre d'heures de formation", "heures de formation");
+  const colRecu   = findCol('argent reçu', 'argent recu');
+  const colVerseI = findCol('versé (salaires formateur.rice.s internes)', 'verse (salaires formateur.rice.s internes)');
+  const colVerseE = findCol('versé (salaires formateur.rice.s externes)', 'verse (salaires formateur.rice.s externes)');
+  const colHP     = findCol("heures totales des participant");
+
+  const parsed = [];
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.every(c => !c && c !== 0)) continue;
+    const nom = colNom >= 0 ? (r[colNom]||'').toString().trim() : '';
+    if (!nom) continue;
+
+    const num = v => { const n = parseFloat((v||'').toString().replace(',','.').replace('#REF!','')); return isNaN(n) ? 0 : n; };
+
+    const formInt = colFormInt >= 0 ? (r[colFormInt]||'').toString().trim() : '';
+    const formExt = colFormExt >= 0 ? (r[colFormExt]||'').toString().trim() : '';
+    const verseI = colVerseI >= 0 ? num(r[colVerseI]) : 0;
+    const verseE = colVerseE >= 0 ? num(r[colVerseE]) : 0;
+
+    parsed.push({
+      id: 'SES_' + Date.now() + '_' + i,
+      cat: colCat >= 0 ? (r[colCat]||'').toString().trim() : '',
+      nom,
+      formInt, formExt,
+      participants: colPart >= 0 ? num(r[colPart]) : 0,
+      heuresFormation: colHF >= 0 ? num(r[colHF]) : 0,
+      heuresParticipants: colHP >= 0 ? num(r[colHP]) : 0,
+      recu: colRecu >= 0 ? num(r[colRecu]) : 0,
+      verse: verseI + verseE,
+      verseInterne: verseI,
+      verseExterne: verseE,
+    });
+  }
+
+  if (!parsed.length) {
+    document.getElementById('import-preview').innerHTML =
+      `<div class="ib ib-red"><i class="ti ti-alert-triangle"></i>Aucune session détectée. Vérifiez le format du fichier.</div>`;
+    document.getElementById('import-actions').style.display = 'none';
+    return;
+  }
+
+  state.importBuffer = parsed;
+  const incompletes = parsed.filter(sessionIncomplete).length;
+  document.getElementById('import-preview').innerHTML = `
+    <div class="ib ib-green"><i class="ti ti-check"></i>
+      <span><strong>${filename}</strong> — <strong>${parsed.length}</strong> session(s) détectées · ${incompletes} incomplète(s) (à compléter après import)</span>
+    </div>
+    <div class="card" style="padding:0"><div class="tw"><table>
+      <thead><tr><th>Catégorie</th><th>Session</th><th>Particip.</th><th>Reçu</th></tr></thead>
+      <tbody>${parsed.slice(0,12).map(s=>`<tr>
+        <td>${s.cat||'<span style="color:var(--text3)">—</span>'}</td>
+        <td>${s.nom}</td>
+        <td style="text-align:right">${s.participants}</td>
+        <td style="text-align:right">${fmtEur(s.recu)}</td>
+      </tr>`).join('')}
+      ${parsed.length>12?`<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:.5rem">… ${parsed.length-12} autres</td></tr>`:''}
+      </tbody></table></div></div>`;
+  document.getElementById('import-count').textContent = parsed.length + ' sessions à importer';
+  document.getElementById('import-actions').style.display = 'flex';
+}
+
+function validerImportSessions() {
+  state.sessions.push(...state.importBuffer);
+  const n = state.importBuffer.length;
+  state.importBuffer = [];
+  document.getElementById('import-preview').innerHTML = `<div class="ib ib-green"><i class="ti ti-check"></i>${n} session(s) importée(s).</div>`;
+  document.getElementById('import-actions').style.display = 'none';
+  sauvegarder(true);
+  updateAll();
+  toast(n + ' sessions importées');
+}
+function annulerImportSessions() {
+  state.importBuffer = [];
+  document.getElementById('import-preview').innerHTML = '';
+  document.getElementById('import-actions').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════════════════
+// SESSIONS — CRUD
+// ══════════════════════════════════════════════════════════════
+function renderFiltresSessions() {
+  // géré par renderSelectsCat
+}
+
+function renderSessions() {
+  const fCat = document.getElementById('ses-f-cat').value;
+  const fStatut = document.getElementById('ses-f-statut').value;
+  let list = state.sessions;
+  if (fCat) list = list.filter(s => s.cat === fCat);
+  if (fStatut === 'complete') list = list.filter(s => !sessionIncomplete(s));
+  if (fStatut === 'incomplete') list = list.filter(s => sessionIncomplete(s));
+
+  let totPart=0, totHF=0, totHP=0, totRecu=0, totVerse=0;
+  const tbody = document.getElementById('ses-tbody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text3)">Aucune session</td></tr>';
+  } else {
+    tbody.innerHTML = list.map(s => {
+      totPart += s.participants||0; totHF += s.heuresFormation||0; totHP += s.heuresParticipants||0;
+      totRecu += s.recu||0; totVerse += s.verse||0;
+      const map = getMapping(s.cat);
+      const ligneBadge = map ? `<span class="badge b-teal">${map.ligne}</span>` : `<span class="badge b-amber">?</span>`;
+      const incomplete = sessionIncomplete(s);
+      return `<tr ${incomplete?'style="background:rgba(186,117,23,.06)"':''}>
+        <td>${s.cat||'—'}</td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.nom}">${s.nom}${incomplete?' <i class="ti ti-alert-triangle" style="color:var(--amber);font-size:12px"></i>':''}</td>
+        <td style="font-size:12px">${[s.formInt,s.formExt].filter(Boolean).join(', ')||'—'}</td>
+        <td style="text-align:right">${s.participants||0}</td>
+        <td style="text-align:right">${s.heuresFormation||0}</td>
+        <td style="text-align:right">${s.heuresParticipants||0}</td>
+        <td style="text-align:right">${fmtEur(s.recu)}</td>
+        <td style="text-align:right">${fmtEur(s.verse)}</td>
+        <td>${ligneBadge}</td>
+        <td><button class="btn btn-secondary btn-xs" onclick="ouvrirModalSession('${s.id}')"><i class="ti ti-edit"></i></button></td>
+      </tr>`;
+    }).join('');
+  }
+  document.getElementById('ses-total-part').textContent = fmt(totPart);
+  document.getElementById('ses-total-hf').textContent = fmt(totHF);
+  document.getElementById('ses-total-hp').textContent = fmt(totHP);
+  document.getElementById('ses-total-recu').textContent = fmtEur(totRecu);
+  document.getElementById('ses-total-verse').textContent = fmtEur(totVerse);
+}
+
+function resetFiltresSessions() {
+  document.getElementById('ses-f-cat').value = '';
+  document.getElementById('ses-f-statut').value = '';
+  renderSessions();
+}
+
+function ouvrirModalSession(id) {
+  editSessionId = id || null;
+  const s = id ? state.sessions.find(x=>x.id===id) : null;
+  document.getElementById('modal-session-title').textContent = s ? 'Modifier la session' : 'Nouvelle session';
+  renderSelectsCat();
+  document.getElementById('ms-cat').value = s?.cat || '';
+  document.getElementById('ms-nom').value = s?.nom || '';
+  document.getElementById('ms-form-int').value = s?.formInt || '';
+  document.getElementById('ms-form-ext').value = s?.formExt || '';
+  document.getElementById('ms-participants').value = s?.participants || 0;
+  document.getElementById('ms-heures-form').value = s?.heuresFormation || 0;
+  document.getElementById('ms-heures-part').value = s?.heuresParticipants || 0;
+  document.getElementById('ms-recu').value = s?.recu || 0;
+  document.getElementById('ms-verse').value = s?.verse || 0;
+  document.getElementById('ms-btn-suppr').style.display = s ? 'inline-flex' : 'none';
+  document.getElementById('modal-session').classList.add('open');
+}
+function fermerModalSession() { document.getElementById('modal-session').classList.remove('open'); editSessionId = null; }
+
+function validerSession() {
+  const nom = document.getElementById('ms-nom').value.trim();
+  if (!nom) { toast('Nom de session requis', 'warn'); return; }
+  const data = {
+    cat: document.getElementById('ms-cat').value,
+    nom,
+    formInt: document.getElementById('ms-form-int').value.trim(),
+    formExt: document.getElementById('ms-form-ext').value.trim(),
+    participants: parseFloat(document.getElementById('ms-participants').value)||0,
+    heuresFormation: parseFloat(document.getElementById('ms-heures-form').value)||0,
+    heuresParticipants: parseFloat(document.getElementById('ms-heures-part').value)||0,
+    recu: parseFloat(document.getElementById('ms-recu').value)||0,
+    verse: parseFloat(document.getElementById('ms-verse').value)||0,
+  };
+  if (editSessionId) {
+    const idx = state.sessions.findIndex(x=>x.id===editSessionId);
+    if (idx>=0) state.sessions[idx] = { ...state.sessions[idx], ...data };
+  } else {
+    state.sessions.push({ id: 'SES_'+Date.now(), ...data });
+  }
+  fermerModalSession();
+  sauvegarder(true);
+  updateAll();
+  toast(editSessionId ? 'Session mise à jour' : 'Session ajoutée');
+}
+function supprimerSession() {
+  if (!confirm('Supprimer cette session ?')) return;
+  state.sessions = state.sessions.filter(s => s.id !== editSessionId);
+  fermerModalSession();
+  sauvegarder(true);
+  updateAll();
+  toast('Session supprimée');
+}
+
+// ══════════════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════════════
+function renderDashboard() {
+  const sessions = state.sessions;
+  const incompletes = sessions.filter(sessionIncomplete).length;
+  const totProduits = sessions.reduce((s,x)=>s+(x.recu||0),0);
+  const totStagiaires = sessions.reduce((s,x)=>s+(x.participants||0),0);
+  const totHeuresStag = sessions.reduce((s,x)=>s+(x.heuresParticipants||0),0);
+  const totHeuresForm = sessions.reduce((s,x)=>s+(x.heuresFormation||0),0);
+
+  document.getElementById('db-sessions').textContent = sessions.length;
+  document.getElementById('db-sessions-sub').textContent = `dont ${incompletes} incomplète(s)`;
+  document.getElementById('db-produits').textContent = fmtEur(totProduits);
+  document.getElementById('db-stagiaires').textContent = fmt(totStagiaires);
+  document.getElementById('db-heures-stag').textContent = fmt(totHeuresStag);
+  document.getElementById('db-heures-form').textContent = fmt(totHeuresForm);
+  document.getElementById('db-pct-ca').textContent = state.pctCA !== null ? state.pctCA + ' %' : '— %';
+
+  // Alertes
+  const alertesDiv = document.getElementById('db-alertes');
+  let alertes = '';
+  if (incompletes > 0) {
+    alertes += `<div class="ib ib-amber"><i class="ti ti-alert-triangle"></i><span><strong>${incompletes} session(s) incomplète(s)</strong> — heures, montant reçu ou formateurE manquant. <a href="#" onclick="document.getElementById('ses-f-statut').value='incomplete';showPage('sessions');renderSessions();return false" style="color:var(--amber);text-decoration:underline">Voir les sessions →</a></span></div>`;
+  }
+  const sansMapping = [...new Set(sessions.map(s=>s.cat).filter(Boolean))].filter(c => !getMapping(c));
+  if (sansMapping.length > 0) {
+    alertes += `<div class="ib ib-red"><i class="ti ti-alert-triangle"></i><span><strong>${sansMapping.length} catégorie(s) sans mapping CERFA :</strong> ${sansMapping.join(', ')}. <a href="#" onclick="showPage('config');return false" style="color:var(--red);text-decoration:underline">Configurer →</a></span></div>`;
+  }
+  alertesDiv.innerHTML = alertes;
+
+  // Répartition par ligne CERFA
+  const parLigne = {};
+  sessions.forEach(s => {
+    const map = getMapping(s.cat);
+    const ligne = map ? map.ligne : '?';
+    parLigne[ligne] = (parLigne[ligne]||0) + (s.recu||0);
+  });
+  const repC = document.getElementById('db-repart-c');
+  const ligneEntries = Object.entries(parLigne).sort((a,b)=>b[1]-a[1]);
+  if (!ligneEntries.length) {
+    repC.innerHTML = '<p style="color:var(--text3);font-size:13px">Aucune donnée</p>';
+  } else {
+    const max = Math.max(...ligneEntries.map(e=>e[1]));
+    repC.innerHTML = ligneEntries.map(([ligne,montant]) => `
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+          <span style="font-weight:500">${ligne === '?' ? 'Non mappé' : ligne+' — '+LIGNES_CERFA[ligne]}</span>
+          <span>${fmtEur(montant)}</span>
+        </div>
+        <div style="height:6px;background:var(--bg2);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${max>0?Math.round(montant/max*100):0}%;background:${ligne==='?'?'var(--red)':'var(--teal)'};border-radius:3px"></div>
+        </div>
+      </div>`).join('');
+  }
+
+  // Répartition par catégorie interne
+  const parCat = {};
+  sessions.forEach(s => { const c = s.cat||'Non catégorisé'; parCat[c] = (parCat[c]||0) + (s.recu||0); });
+  const repCat = document.getElementById('db-repart-cat');
+  const catEntries = Object.entries(parCat).sort((a,b)=>b[1]-a[1]);
+  if (!catEntries.length) {
+    repCat.innerHTML = '<p style="color:var(--text3);font-size:13px">Aucune donnée</p>';
+  } else {
+    const max2 = Math.max(...catEntries.map(e=>e[1]));
+    repCat.innerHTML = catEntries.map(([cat,montant]) => `
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+          <span style="font-weight:500">${cat}</span><span>${fmtEur(montant)}</span>
+        </div>
+        <div style="height:6px;background:var(--bg2);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${max2>0?Math.round(montant/max2*100):0}%;background:var(--purple);border-radius:3px"></div>
+        </div>
+      </div>`).join('');
+  }
+}
+
+function updateSidebar() {
+  document.getElementById('sb-sessions').textContent = 'Sessions : ' + state.sessions.length;
+  document.getElementById('sb-produits').textContent = 'Produits : ' + fmtEur(state.sessions.reduce((s,x)=>s+(x.recu||0),0));
+}
+
+// ══════════════════════════════════════════════════════════════
+// CADRE C — produits
+// ══════════════════════════════════════════════════════════════
+function calcCadreC() {
+  const result = {};
+  ORDRE_LIGNES.forEach(l => result[l] = 0);
+  let nonMappe = 0;
+  state.sessions.forEach(s => {
+    const map = getMapping(s.cat);
+    if (map && result.hasOwnProperty(map.ligne)) result[map.ligne] += (s.recu||0);
+    else nonMappe += (s.recu||0);
+  });
+  return { result, nonMappe };
+}
+
+function renderCadreC() {
+  const { result, nonMappe } = calcCadreC();
+  const totalH = ['a','b','c','d','e','f','g','h'].reduce((s,l)=>s+result[l],0);
+  const totalGeneral = ORDRE_LIGNES.reduce((s,l)=>s+result[l],0) + nonMappe;
+
+  let html = `<div class="cerfa-block">
+    <div class="cerfa-block-header">Produits provenant des entreprises et organismes</div>
+    <div class="cerfa-row"><span><span class="cerfa-letter">1</span>Entreprises pour la formation de leurs salariés</span><span class="cerfa-val">${fmtEur(result['1'])}</span></div>
+    ${['a','b','c','d','e','f','g','h'].map(l => `
+      <div class="cerfa-row indent"><span><span class="cerfa-letter">${l}</span>${LIGNES_CERFA[l].replace("Organismes gestionnaires — ","")}</span><span class="cerfa-val">${fmtEur(result[l])}</span></div>
+    `).join('')}
+    <div class="cerfa-row total"><span><span class="cerfa-letter">2</span>Total organismes gestionnaires (a→h)</span><span class="cerfa-val">${fmtEur(totalH)}</span></div>
+  </div>
+
+  <div class="cerfa-block">
+    <div class="cerfa-block-header">Produits provenant des pouvoirs publics</div>
+    <div class="cerfa-row"><span><span class="cerfa-letter">3</span>Formation de leurs agents</span><span class="cerfa-val">${fmtEur(result['3'])}</span></div>
+    <div class="cerfa-row indent"><span><span class="cerfa-letter">4</span>Instances européennes</span><span class="cerfa-val">${fmtEur(result['4'])}</span></div>
+    <div class="cerfa-row indent"><span><span class="cerfa-letter">5</span>État</span><span class="cerfa-val">${fmtEur(result['5'])}</span></div>
+    <div class="cerfa-row indent"><span><span class="cerfa-letter">6</span>Conseils régionaux</span><span class="cerfa-val">${fmtEur(result['6'])}</span></div>
+    <div class="cerfa-row indent"><span><span class="cerfa-letter">7</span>France Travail</span><span class="cerfa-val">${fmtEur(result['7'])}</span></div>
+    <div class="cerfa-row indent"><span><span class="cerfa-letter">8</span>Autres ressources publiques</span><span class="cerfa-val">${fmtEur(result['8'])}</span></div>
+  </div>
+
+  <div class="cerfa-block">
+    <div class="cerfa-block-header">Autres produits</div>
+    <div class="cerfa-row"><span><span class="cerfa-letter">9</span>Personnes à titre individuel, à leurs frais</span><span class="cerfa-val">${fmtEur(result['9'])}</span></div>
+    <div class="cerfa-row"><span><span class="cerfa-letter">10</span>Contrats avec d'autres organismes de formation</span><span class="cerfa-val">${fmtEur(result['10'])}</span></div>
+    <div class="cerfa-row"><span><span class="cerfa-letter">11</span>Autres produits formation professionnelle</span><span class="cerfa-val">${fmtEur(result['11'])}</span></div>
+  </div>
+
+  ${nonMappe > 0 ? `<div class="ib ib-red"><i class="ti ti-alert-triangle"></i><span><strong>${fmtEur(nonMappe)}</strong> de sessions non mappées à une ligne CERFA — <a href="#" onclick="showPage('config');return false" style="color:var(--red);text-decoration:underline">configurer le mapping</a></span></div>` : ''}
+
+  <div class="cerfa-block">
+    <div class="cerfa-row total" style="font-size:15px"><span>TOTAL DES PRODUITS RÉALISÉS</span><span class="cerfa-val">${fmtEur(totalGeneral)}</span></div>
+  </div>`;
+
+  document.getElementById('cadreC-content').innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════
+// CADRE D — charges (saisie manuelle)
+// ══════════════════════════════════════════════════════════════
+function renderCadreD() {
+  document.getElementById('d-total-charges').value = state.cadreD.totalCharges || '';
+  document.getElementById('d-salaires-form').value = state.cadreD.salairesForm || '';
+  document.getElementById('d-achats-prest').value = state.cadreD.achatsPrest || '';
+
+  const sommeVersements = state.sessions.reduce((s,x)=>s+(x.verse||0),0);
+  document.getElementById('cadreD-content').innerHTML = `
+    <div class="ib ib-blue"><i class="ti ti-info-circle"></i><span>Pour référence : la somme des montants "versés aux formateurEs" dans vos sessions est de <strong>${fmtEur(sommeVersements)}</strong>. Vous pouvez vous en servir comme base pour "Salaires des formateurs" ci-dessus, en y ajoutant les charges sociales si nécessaire.</span></div>`;
+}
+function updateCadreD() {
+  state.cadreD.totalCharges = parseFloat(document.getElementById('d-total-charges').value)||0;
+  state.cadreD.salairesForm = parseFloat(document.getElementById('d-salaires-form').value)||0;
+  state.cadreD.achatsPrest = parseFloat(document.getElementById('d-achats-prest').value)||0;
+  sauvegarder(true);
+}
+
+// ══════════════════════════════════════════════════════════════
+// CADRE E — formateurEs
+// ══════════════════════════════════════════════════════════════
+function renderCadreE() {
+  const internesSet = new Set();
+  const externesSet = new Set();
+  let heuresInternes = 0, heuresExternes = 0;
+
+  state.sessions.forEach(s => {
+    const totalForm = (s.formInt?1:0) + (s.formExt?1:0);
+    if (s.formInt) {
+      s.formInt.split(',').map(x=>x.trim()).filter(Boolean).forEach(n => internesSet.add(n));
+      heuresInternes += (s.heuresFormation||0) * (s.formInt && !s.formExt ? 1 : 0.5);
+    }
+    if (s.formExt) {
+      s.formExt.split(',').map(x=>x.trim()).filter(Boolean).forEach(n => externesSet.add(n));
+      heuresExternes += (s.heuresFormation||0) * (s.formExt && !s.formInt ? 1 : 0.5);
+    }
+  });
+
+  document.getElementById('cadreE-content').innerHTML = `
+    <div class="cerfa-block">
+      <div class="cerfa-block-header">E. PersonnEs dispensant des heures de formation</div>
+      <div style="padding:14px;font-size:12px;color:var(--text2)">Nombre · Nombre d'heures de formation dispensées</div>
+      <div class="cerfa-row"><span>PersonnEs de votre organisme (internes)</span><span class="cerfa-val">${internesSet.size} · ${fmt(heuresInternes)} h</span></div>
+      <div class="cerfa-row"><span>PersonnEs extérieures (sous-traitance)</span><span class="cerfa-val">${externesSet.size} · ${fmt(heuresExternes)} h</span></div>
+    </div>
+    <div class="ib ib-blue"><i class="ti ti-info-circle"></i><span>Liste des formateurEs internes détectéEs : ${[...internesSet].join(', ')||'aucun'}<br>Liste des formateurEs externes détectéEs : ${[...externesSet].join(', ')||'aucun'}</span></div>
+    <div class="ib ib-amber"><i class="ti ti-alert-triangle"></i><span>Le calcul des heures suppose un partage 50/50 quand interne ET externe interviennent sur la même session. Vérifiez et ajustez manuellement si besoin via l'édition des sessions.</span></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// CADRE F — stagiaires
+// ══════════════════════════════════════════════════════════════
+function renderCadreF() {
+  const totStagiaires = state.sessions.reduce((s,x)=>s+(x.participants||0),0);
+  const totHeuresStag = state.sessions.reduce((s,x)=>s+(x.heuresParticipants||0),0);
+
+  state.cadreF.pctSalaries = parseFloat(document.getElementById('f1-pct-salaries').value)||0;
+  state.cadreF.pctDE = parseFloat(document.getElementById('f1-pct-de').value)||0;
+  state.cadreF.pctPart = parseFloat(document.getElementById('f1-pct-part').value)||0;
+  state.cadreF.pctAutres = parseFloat(document.getElementById('f1-pct-autres').value)||0;
+
+  const totalPct = state.cadreF.pctSalaries + state.cadreF.pctDE + state.cadreF.pctPart + state.cadreF.pctAutres;
+
+  const nSalaries = Math.round(totStagiaires * state.cadreF.pctSalaries / 100);
+  const nDE = Math.round(totStagiaires * state.cadreF.pctDE / 100);
+  const nPart = Math.round(totStagiaires * state.cadreF.pctPart / 100);
+  const nAutres = totStagiaires - nSalaries - nDE - nPart;
+
+  const hSalaries = Math.round(totHeuresStag * state.cadreF.pctSalaries / 100);
+  const hDE = Math.round(totHeuresStag * state.cadreF.pctDE / 100);
+  const hPart = Math.round(totHeuresStag * state.cadreF.pctPart / 100);
+  const hAutres = totHeuresStag - hSalaries - hDE - hPart;
+
+  document.getElementById('cadreF1-content').innerHTML = `
+    ${Math.abs(totalPct-100)>0.5 ? `<div class="ib ib-red"><i class="ti ti-alert-triangle"></i><span>Le total des pourcentages fait ${totalPct}% — doit faire 100%.</span></div>` : ''}
+    <div class="cerfa-block">
+      <div class="cerfa-block-header">F-1. Type de stagiaires de l'organisme</div>
+      <div style="padding:8px 14px;display:grid;grid-template-columns:1fr 100px 100px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase">
+        <span></span><span style="text-align:right">StagiairEs</span><span style="text-align:right">Heures</span>
+      </div>
+      <div class="cerfa-row"><span><span class="cerfa-letter">a</span>Salariés d'employeurs privés (hors apprentis)</span><span class="cerfa-val">${nSalaries} · ${fmt(hSalaries)}h</span></div>
+      <div class="cerfa-row"><span><span class="cerfa-letter">c</span>Personnes en recherche d'emploi</span><span class="cerfa-val">${nDE} · ${fmt(hDE)}h</span></div>
+      <div class="cerfa-row"><span><span class="cerfa-letter">d</span>Particuliers à leurs propres frais</span><span class="cerfa-val">${nPart} · ${fmt(hPart)}h</span></div>
+      <div class="cerfa-row"><span><span class="cerfa-letter">e</span>Autres stagiaires (bénévoles…)</span><span class="cerfa-val">${nAutres} · ${fmt(hAutres)}h</span></div>
+      <div class="cerfa-row total"><span>TOTAL</span><span class="cerfa-val">${totStagiaires} · ${fmt(totHeuresStag)}h</span></div>
+    </div>`;
+
+  state.cadreF.f3Autres = parseFloat(document.getElementById('f3-autres').value)||0;
+  state.cadreF.f3Certif = parseFloat(document.getElementById('f3-certif').value)||0;
+
+  renderSpecialites();
+  sauvegarder(true);
+}
+
+function renderSpecialites() {
+  document.getElementById('f4-tbody').innerHTML = state.cadreF.specialites.map((sp,i) => `
+    <tr>
+      <td><input type="text" value="${sp.code}" oninput="updateSpecialite(${i},'code',this.value)" style="width:60px;padding:3px 6px;font-size:12px;border:.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text)"></td>
+      <td><input type="text" value="${sp.nom}" oninput="updateSpecialite(${i},'nom',this.value)" style="width:100%;padding:3px 6px;font-size:12px;border:.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text)"></td>
+      <td><input type="number" value="${sp.stagiaires}" oninput="updateSpecialite(${i},'stagiaires',this.value)" style="width:70px;padding:3px 6px;font-size:12px;border:.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text)"></td>
+      <td><input type="number" value="${sp.heures}" oninput="updateSpecialite(${i},'heures',this.value)" style="width:70px;padding:3px 6px;font-size:12px;border:.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text)"></td>
+      <td><button class="btn btn-danger btn-xs" onclick="supprimerSpecialite(${i})"><i class="ti ti-x"></i></button></td>
+    </tr>`).join('');
+}
+function ajouterSpecialite() {
+  state.cadreF.specialites.push({ code:'', nom:'', stagiaires:0, heures:0 });
+  renderSpecialites(); sauvegarder(true);
+}
+function updateSpecialite(i, field, val) {
+  state.cadreF.specialites[i][field] = field==='code'||field==='nom' ? val : (parseFloat(val)||0);
+  sauvegarder(true);
+}
+function supprimerSpecialite(i) {
+  state.cadreF.specialites.splice(i,1);
+  renderSpecialites(); sauvegarder(true);
+}
+
+// ══════════════════════════════════════════════════════════════
+// CADRE G
+// ══════════════════════════════════════════════════════════════
+function renderCadreG() {
+  document.getElementById('g-stagiaires').value = state.cadreG.stagiaires || 0;
+  document.getElementById('g-heures').value = state.cadreG.heures || 0;
+}
+function updateCadreG() {
+  state.cadreG.stagiaires = parseFloat(document.getElementById('g-stagiaires').value)||0;
+  state.cadreG.heures = parseFloat(document.getElementById('g-heures').value)||0;
+  sauvegarder(true);
+}
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT / BILAN CERFA COMPLET
+// ══════════════════════════════════════════════════════════════
+function renderExport() {
+  const { result, nonMappe } = calcCadreC();
+  const totalH = ['a','b','c','d','e','f','g','h'].reduce((s,l)=>s+result[l],0);
+  const totalGeneral = ORDRE_LIGNES.reduce((s,l)=>s+result[l],0) + nonMappe;
+  const totStagiaires = state.sessions.reduce((s,x)=>s+(x.participants||0),0);
+  const totHeuresStag = state.sessions.reduce((s,x)=>s+(x.heuresParticipants||0),0);
+
+  document.getElementById('export-content').innerHTML = `
+    <div class="card">
+      <div class="sec-title" style="margin-bottom:1rem"><i class="ti ti-id"></i> A — Identification</div>
+      <p style="font-size:13px;color:var(--text2)">N° déclaration : 76311060231 · SIRET : 84898226000012 · COLL.IN (Collectif pour l'Inclusion Numérique)</p>
+    </div>
+    <div class="card" style="margin-top:1rem">
+      <div class="sec-title" style="margin-bottom:1rem"><i class="ti ti-calendar"></i> B — Informations générales</div>
+      <p style="font-size:13px;color:var(--text2)">Exercice du ${state.config.dateDebut?.split('-').reverse().join('/')||'?'} au ${state.config.dateFin?.split('-').reverse().join('/')||'?'}</p>
+    </div>
+    <div style="margin-top:1.25rem">
+      <div class="sec-title" style="margin-bottom:1rem"><i class="ti ti-coin"></i> C — Bilan financier : produits</div>
+      ${document.getElementById('cadreC-content').innerHTML}
+    </div>
+    <div style="margin-top:1.25rem">
+      <div class="sec-title" style="margin-bottom:1rem"><i class="ti ti-receipt"></i> D — Charges</div>
+      <div class="cerfa-block">
+        <div class="cerfa-row"><span>Total des charges liées à l'activité de formation</span><span class="cerfa-val">${fmtEur(state.cadreD.totalCharges)}</span></div>
+        <div class="cerfa-row indent"><span>dont Salaires des formateurEs</span><span class="cerfa-val">${fmtEur(state.cadreD.salairesForm)}</span></div>
+        <div class="cerfa-row indent"><span>dont Achats de prestation/honoraires formation</span><span class="cerfa-val">${fmtEur(state.cadreD.achatsPrest)}</span></div>
+      </div>
+    </div>
+    <div style="margin-top:1.25rem">${document.getElementById('cadreE-content').innerHTML}</div>
+    <div style="margin-top:1.25rem">
+      <div class="sec-title" style="margin-bottom:1rem"><i class="ti ti-school"></i> F — Bilan pédagogique</div>
+      ${document.getElementById('cadreF1-content').innerHTML}
+    </div>
+    <div class="card" style="margin-top:1rem">
+      <div class="sec-title" style="margin-bottom:.75rem"><i class="ti ti-arrows-exchange"></i> G — Stagiaires confiés par un autre organisme</div>
+      <p style="font-size:13px">StagiairEs : <strong>${state.cadreG.stagiaires}</strong> · Heures : <strong>${state.cadreG.heures}</strong></p>
+    </div>`;
+}
+
+function exportBPFTxt() {
+  const { result, nonMappe } = calcCadreC();
+  const totalH = ['a','b','c','d','e','f','g','h'].reduce((s,l)=>s+result[l],0);
+  const totalGeneral = ORDRE_LIGNES.reduce((s,l)=>s+result[l],0) + nonMappe;
+  const totStagiaires = state.sessions.reduce((s,x)=>s+(x.participants||0),0);
+  const totHeuresStag = state.sessions.reduce((s,x)=>s+(x.heuresParticipants||0),0);
+  const totHeuresForm = state.sessions.reduce((s,x)=>s+(x.heuresFormation||0),0);
+
+  const nSalaries = Math.round(totStagiaires * state.cadreF.pctSalaries / 100);
+  const nDE = Math.round(totStagiaires * state.cadreF.pctDE / 100);
+  const nPart = Math.round(totStagiaires * state.cadreF.pctPart / 100);
+  const nAutres = totStagiaires - nSalaries - nDE - nPart;
+
+  const txt = `BILAN PÉDAGOGIQUE ET FINANCIER — PRÉ-REMPLISSAGE
+Association COLL.IN · N° déclaration 76311060231 · SIRET 84898226000012
+Exercice : ${state.config.dateDebut} au ${state.config.dateFin}
+Document généré le ${new Date().toLocaleDateString('fr-FR')} — à recopier sur monactiviteformation.emploi.gouv.fr
+
+═══════════════════════════════════════════════════════
+C. BILAN FINANCIER — ORIGINE DES PRODUITS
+═══════════════════════════════════════════════════════
+1  Entreprises pour leurs salariés ........................ ${fmtEur(result['1'])}
+a  Contrats d'apprentissage ................................ ${fmtEur(result['a'])}
+b  Contrats de professionnalisation ........................ ${fmtEur(result['b'])}
+c  Promotion/reconversion par alternance ................... ${fmtEur(result['c'])}
+d  Projets de transition professionnelle ................... ${fmtEur(result['d'])}
+e  Compte personnel de formation ........................... ${fmtEur(result['e'])}
+f  Dispositifs spécifiques demandeurs d'emploi ............. ${fmtEur(result['f'])}
+g  Dispositifs spécifiques travailleurs non-salariés ....... ${fmtEur(result['g'])}
+h  Plan de développement des compétences / autres .......... ${fmtEur(result['h'])}
+2  TOTAL organismes gestionnaires (a→h) .................... ${fmtEur(totalH)}
+3  Pouvoirs publics — formation de leurs agents ............ ${fmtEur(result['3'])}
+4  Pouvoirs publics — instances européennes ................ ${fmtEur(result['4'])}
+5  Pouvoirs publics — État .................................. ${fmtEur(result['5'])}
+6  Pouvoirs publics — conseils régionaux .................... ${fmtEur(result['6'])}
+7  Pouvoirs publics — France Travail ........................ ${fmtEur(result['7'])}
+8  Pouvoirs publics — autres ressources publiques ........... ${fmtEur(result['8'])}
+9  Personnes à titre individuel, à leurs frais .............. ${fmtEur(result['9'])}
+10 Contrats avec d'autres organismes de formation ........... ${fmtEur(result['10'])}
+11 Autres produits formation professionnelle ................ ${fmtEur(result['11'])}
+${nonMappe > 0 ? `\n⚠ NON MAPPÉ (à reclasser) ............................... ${fmtEur(nonMappe)}\n` : ''}
+───────────────────────────────────────────────────────
+TOTAL DES PRODUITS RÉALISÉS .............................. ${fmtEur(totalGeneral)}
+═══════════════════════════════════════════════════════
+
+D. BILAN FINANCIER — CHARGES
+═══════════════════════════════════════════════════════
+Total charges formation .................................. ${fmtEur(state.cadreD.totalCharges)}
+  dont Salaires des formateurEs ........................... ${fmtEur(state.cadreD.salairesForm)}
+  dont Achats prestation / honoraires formation ........... ${fmtEur(state.cadreD.achatsPrest)}
+
+E. PERSONNES DISPENSANT DES HEURES DE FORMATION
+═══════════════════════════════════════════════════════
+Heures totales de formation dispensées (sessions) ........ ${fmt(totHeuresForm)} h
+
+F. BILAN PÉDAGOGIQUE — STAGIAIRES
+═══════════════════════════════════════════════════════
+a  Salariés d'employeurs privés ............................ ${nSalaries} stagiaires
+c  Personnes en recherche d'emploi .......................... ${nDE} stagiaires
+d  Particuliers à leurs propres frais ....................... ${nPart} stagiaires
+e  Autres stagiaires ........................................ ${nAutres} stagiaires
+(1) TOTAL ................................................. ${totStagiaires} stagiaires · ${fmt(totHeuresStag)} heures
+
+F-3 Objectif général des prestations
+d  Autres formations professionnelles ....................... ${state.cadreF.f3Autres}
+a/b/c Formations certifiantes .............................. ${state.cadreF.f3Certif}
+
+F-4 Spécialités de formation
+${state.cadreF.specialites.map(sp => `${sp.code}  ${sp.nom} ........ ${sp.stagiaires} stagiaires · ${sp.heures}h`).join('\n')}
+
+G. STAGIAIRES CONFIÉS PAR UN AUTRE ORGANISME
+═══════════════════════════════════════════════════════
+StagiairEs ................................................ ${state.cadreG.stagiaires}
+Heures ..................................................... ${state.cadreG.heures}
+
+═══════════════════════════════════════════════════════
+Document préparatoire — à vérifier avant télétransmission officielle
+sur monactiviteformation.emploi.gouv.fr
+`;
+
+  dl(txt, 'BPF_' + state.config.exercice + '_preremplissage_' + today() + '.txt', 'text/plain;charset=utf-8');
+  toast('Bilan BPF exporté');
+}
+
+// ══════════════════════════════════════════════════════════════
+// PERSISTENCE
+// ══════════════════════════════════════════════════════════════
+function sauvegarder(silent) {
+  try {
+    localStorage.setItem('bpf_collin_v1', JSON.stringify(state));
+    if (!silent) toast('Sauvegardé');
+  } catch { toast('Erreur sauvegarde', 'warn'); }
+}
+
+function chargerLS() {
+  try {
+    const s = localStorage.getItem('bpf_collin_v1');
+    if (!s) return;
+    const saved = JSON.parse(s);
+    if (saved.config) state.config = { ...state.config, ...saved.config };
+    if (saved.mapping && saved.mapping.length) state.mapping = saved.mapping;
+    if (saved.sessions) state.sessions = saved.sessions;
+    if (saved.cadreD) state.cadreD = saved.cadreD;
+    if (saved.cadreF) state.cadreF = { ...state.cadreF, ...saved.cadreF };
+    if (saved.cadreG) state.cadreG = saved.cadreG;
+    if (saved.pctCA !== undefined) state.pctCA = saved.pctCA;
+  } catch (e) { console.error('Erreur chargement:', e); }
+}
+
+function exportJSON() {
+  const data = { version: 1, date: new Date().toISOString(), state };
+  dl(JSON.stringify(data, null, 2), 'BPF_Collin_' + state.config.exercice + '_' + today() + '.json', 'application/json');
+  toast('Export JSON téléchargé');
+}
+
+function importJSON(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.state) {
+        const s = data.state;
+        if (s.config) state.config = { ...state.config, ...s.config };
+        if (s.mapping && s.mapping.length) state.mapping = s.mapping;
+        if (s.sessions) state.sessions = s.sessions;
+        if (s.cadreD) state.cadreD = s.cadreD;
+        if (s.cadreF) state.cadreF = { ...state.cadreF, ...s.cadreF };
+        if (s.cadreG) state.cadreG = s.cadreG;
+        syncCfgInputs();
+        sauvegarder(true);
+        updateAll();
+        toast('Import réussi — ' + state.sessions.length + ' sessions chargées');
+      } else {
+        toast('Format JSON non reconnu', 'warn');
+      }
+    } catch (err) {
+      console.error(err);
+      toast('Erreur de lecture du fichier JSON', 'warn');
+    }
+  };
+  reader.readAsText(file, 'utf-8');
+  input.value = '';
+}
+
+</script>
+</body>
+</html>
