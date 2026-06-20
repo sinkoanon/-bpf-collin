@@ -709,7 +709,7 @@ function processRows(rows, filename) {
     return -1;
   };
 
-  const colCat    = findCol('catégorie', 'categorie');
+  let colCat    = findCol('catégorie', 'categorie');
   const colNom    = findCol('nom formation');
   const colFormInt= findCol('interne');
   const colFormExt= findCol('externe');
@@ -719,6 +719,21 @@ function processRows(rows, filename) {
   const colVerseI = findCol('versé (salaires formateur.rice.s internes)', 'verse (salaires formateur.rice.s internes)');
   const colVerseE = findCol('versé (salaires formateur.rice.s externes)', 'verse (salaires formateur.rice.s externes)');
   const colHP     = findCol("heures totales des participant");
+
+  // Détection auto du décalage : si la colonne "catégorie" contient majoritairement
+  // des nombres dans les premières lignes de données, la vraie catégorie est décalée d'une colonne
+  if (colCat >= 0 && rows.length > headerIdx + 3) {
+    let nbNumeriques = 0, total = 0;
+    for (let i = headerIdx + 1; i < Math.min(headerIdx + 6, rows.length); i++) {
+      const val = rows[i][colCat];
+      if (val === '' || val === undefined || val === null) continue;
+      total++;
+      if (typeof val === 'number' || /^\d+$/.test((val||'').toString().trim())) nbNumeriques++;
+    }
+    if (total > 0 && nbNumeriques === total) {
+      colCat = colCat + 1; // décaler d'une colonne
+    }
+  }
 
   const parsed = [];
   for (let i = headerIdx + 1; i < rows.length; i++) {
